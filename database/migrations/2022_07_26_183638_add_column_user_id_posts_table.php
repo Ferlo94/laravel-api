@@ -14,7 +14,7 @@ class AddColumnUserIdPostsTable extends Migration
     public function up()
     {
         Schema::table('posts', function (Blueprint $table) {
-            //
+            $table->foreignId('user_id')->nullable()->after('category_id')->constrained()->onDelete('cascade');
         });
     }
 
@@ -26,7 +26,8 @@ class AddColumnUserIdPostsTable extends Migration
     public function down()
     {
         Schema::table('posts', function (Blueprint $table) {
-            //
+            $table->dropForeign(['user_id']);
+            $table->dropColumn('user_id');
         });
     }
 }
