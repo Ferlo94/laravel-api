@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth;
 
 use App\Post;
 use App\Category;
@@ -12,6 +13,13 @@ use App\Tag;
 
 class PostController extends Controller
 {
+    private $validation = [
+        'title' => 'required|string|max:255',
+        'content' => 'required|string|max:65535',
+        'published' => 'sometimes|accepted',
+        'category_id' => 'nullable|exists:categories,id',
+        'tags' => 'nullable|exists:tags,id',
+    ];
     /**
      * Display a listing of the resource.
      *
@@ -19,7 +27,9 @@ class PostController extends Controller
      */
     public function index()
     {
-        $posts = Post::all();
+        // $posts = Post::all();
+        $user = Auth::user();
+        $posts = $user->posts;
 
         return view('admin.posts.index', compact('posts'));
     }
@@ -46,13 +56,7 @@ class PostController extends Controller
     public function store(Request $request)
     {
         // validazione
-        $request->validate([
-            'title' => 'required|string|max:255',
-            'content' => 'required|string|max:65535',
-            'published' => 'sometimes|accepted',
-            'category_id' => 'nullable|exists:categories,id',
-            'tags' => 'nullable|exists:tags,id',
-        ]);
+        $request->validate($this->validation);
         // prendo i dati dalla request e creo il post
         $data = $request->all();
         $newPost = new Post();
@@ -61,6 +65,10 @@ class PostController extends Controller
         $newPost->slug = $this->getSlug($data['title']);
 
         $newPost->published = isset($data['published']); // true o false
+
+        // associo l'utente al post
+        $newPost->user_id = Auth::id(); // mi restituisce l'id dell'utente loggato
+
         $newPost->save();
 
         // se ci sono dei tags associati, li associo al post appena creato
@@ -79,6 +87,10 @@ class PostController extends Controller
      */
     public function show(Post $post)
     {
+        if($post->user_id !== Auth::id()) {
+            abort(403);
+        }
+
         return view('admin.posts.show', compact('post'));
     }
 
@@ -90,13 +102,17 @@ class PostController extends Controller
      */
     public function edit(Post $post)
     {
+        if($post->user_id !== Auth::id()) {
+            abort(403);
+        }
+
         $categories = Category::all();
         $tags = Tag::all();
 
-        $postTags = $post->tags->map(function ($item) {
-            return $item->id;
+        $postTags = $post->tags->map(function ($tag) {
+            return $tag->id;
         })->toArray();
-
+        // [], [1,2]
         return view('admin.posts.edit', compact('post', 'categories', 'tags', 'postTags'));
     }
 
@@ -109,14 +125,12 @@ class PostController extends Controller
      */
     public function update(Request $request, Post $post)
     {
+        if($post->user_id !== Auth::id()) {
+            abort(403);
+        }
+
         // validazione
-        $request->validate([
-            'title' => 'required|string|max:255',
-            'content' => 'required|string|max:65535',
-            'published' => 'sometimes|accepted',
-            'category_id' => 'nullable|exists:categories,id',
-            'tags' => 'nullable|exists:tags,id',
-        ]);
+        $request->validate($this->validation);
         // aggiornamento
         $data = $request->all();
         // se cambia il titolo genero un altro slug
@@ -144,6 +158,10 @@ class PostController extends Controller
      */
     public function destroy(Post $post)
     {
+        if($post->user_id !== Auth::id()) {
+            abort(403);
+        }
+
         $post->delete();
 
         return redirect()->route('admin.posts.index');
